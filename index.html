@@ -1,216 +1,94 @@
 <!DOCTYPE html>
-<!-- FINAL APPLE-STYLE TRIVIA (UPGRADED)
-     Added:
-     - Sound toggle
-     - Dark / Light toggle
-     - Lock screen notifications
-     - Face ID scan sweep animation
-     - macOS user name + avatar
-     - Wrong PIN shake + error sound
--->
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Apple Trivia</title>
 <style>
-:root{
-  --bg:#000;--fg:#fff;--card:#222;--cardHover:#333
-}
-.light{
-  --bg:#f5f5f7;--fg:#000;--card:#e0e0e5;--cardHover:#d0d0d5
-}
+:root{--bg:#000;--fg:#fff;--card:#222;--cardHover:#333}
+.light{--bg:#f5f5f7;--fg:#000;--card:#e0e0e5;--cardHover:#d0d0d5}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden}
 .screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column}
 .active{display:flex}
-
-/* top controls */
 #controls{position:fixed;top:10px;right:10px;display:flex;gap:8px;z-index:999}
 #controls select,#controls button{background:var(--card);color:var(--fg);border:1px solid #555;border-radius:8px;padding:6px 10px;cursor:pointer}
-
-/* boot */
 #boot svg{width:120px;height:150px;fill:var(--fg)}
 #bar{width:220px;height:6px;background:#555;border-radius:10px;margin-top:20px}
 #bar span{display:block;height:100%;width:0;background:var(--fg);animation:load 3s forwards}
 @keyframes load{to{width:100%}}
-
-/* lock */
 #lock{background:linear-gradient(#111,#000)}
 .light #lock{background:linear-gradient(#fff,#ddd)}
 #time{font-size:56px;cursor:pointer}
 #user{display:flex;flex-direction:column;align-items:center;margin:10px}
 #avatar{width:90px;height:90px;border-radius:50%;background:linear-gradient(45deg,#777,#999);margin-bottom:6px}
-#username{font-weight:600}
+#usernameRow{display:flex;align-items:center;gap:6px}
 #hint{opacity:.6;margin:8px}
 #dots{letter-spacing:8px;font-size:30px}
-
-/* shake */
 .shake{animation:shake .4s}
 @keyframes shake{20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
-
-/* pin pad */
 .pad{display:grid;grid-template-columns:repeat(3,70px);gap:12px}
 .key{background:var(--card);border-radius:50%;height:70px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer}
 .key:hover{background:var(--cardHover)}
-
-/* face id */
 #face{width:90px;height:90px;border:3px solid var(--fg);border-radius:22px;display:none;position:relative;margin-top:12px;overflow:hidden}
 .scan{position:absolute;width:100%;height:8px;background:linear-gradient(to right,transparent,#0f0,transparent);animation:scan 1s infinite}
-@keyframes scan{from{top:-10px}to{top:90px}}
-
-/* notification */
 #notif{position:absolute;top:120px;background:var(--card);padding:10px 14px;border-radius:14px;font-size:14px;opacity:0;animation:notif 4s forwards}
-@keyframes notif{10%{opacity:1}80%{opacity:1}100%{opacity:0}}
-
-/* quiz */
 #quiz{background:var(--bg);padding:20px;text-align:center}
 .choice{background:var(--card);padding:14px;border-radius:14px;margin:8px;width:260px;cursor:pointer}
 .choice:hover{background:var(--cardHover)}
 </style>
 </head>
 <body>
-
 <div id="controls">
   <select id="langSelect"><option value="en">EN</option><option value="fr">FR</option><option value="ar">AR</option></select>
   <button id="soundBtn">🔊</button>
   <button id="themeBtn">🌙</button>
 </div>
-
-<!-- boot -->
 <div id="boot" class="screen active">
 <svg viewBox="0 0 814 1000"><path d="M512 180c60-73 53-140 51-160-53 3-116 36-153 79-34 40-64 104-55 165 58 4 117-29 157-84zM407 310c-143 0-207 123-207 251 0 159 116 359 226 359 46 0 64-31 120-31s72 31 121 31c109 0 209-177 209-335 0-130-82-205-161-205-63 0-116 40-150 40-35 0-93-40-158-40z"/></svg>
 <div id="bar"><span></span></div>
 </div>
-
-<!-- lock -->
 <div id="lock" class="screen">
 <div id="time"></div>
-<div id="user"><div id="avatar"></div><div style="display:flex;align-items:center;gap:6px"><div id="username">Alex</div><button id="nameBtn" style="background:var(--card);color:var(--fg);border:none;border-radius:6px;cursor:pointer">🔄</button></div></div><div id="username">Alex</div></div>
+<div id="user"><div id="avatar"></div><div id="usernameRow"><div id="username">Alex</div><button id="nameBtn">🔄</button></div></div>
 <div id="hint"></div>
 <div id="dots"></div>
 <div class="pad" id="pad"></div>
 <div id="face"><div class="scan"></div></div>
 <div id="notif">📩 New Message</div>
 </div>
-
-<!-- quiz -->
 <div id="quiz" class="screen"><h2 id="title"></h2><div id="q"></div><div id="choices"></div><div id="score"></div></div>
-
 <script>
-/* sound */
-let soundOn=true;const ctx=new (window.AudioContext||webkitAudioContext)();
-function tone(f,d){if(!soundOn)return;const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=f;g.gain.value=.0001;g.gain.exponentialRampToValueAtTime(.3,ctx.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+d);o.connect(g).connect(ctx.destination);o.start();o.stop(ctx.currentTime+d)}
+window.onload=function(){
+let soundOn=true;const ctx=new (window.AudioContext||webkitAudioContext)();function tone(f,d){if(!soundOn)return;const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=f;g.gain.value=.0001;g.gain.exponentialRampToValueAtTime(.3,ctx.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+d);o.connect(g).connect(ctx.destination);o.start();o.stop(ctx.currentTime+d)}
 document.body.onclick=()=>tone(440,1.3);
-
 soundBtn.onclick=()=>{soundOn=!soundOn;soundBtn.textContent=soundOn?'🔊':'🔇'};
 themeBtn.onclick=()=>document.body.classList.toggle('light');
-
-/* language */
 const LANG={en:{dir:'ltr',pin:'1111',ui:{hint:'Try to enter 1111',title:'Apple Trivia',score:s=>`Score ${s}/20`}},fr:{dir:'ltr',pin:'1111',ui:{hint:'Essayez d’entrer 1111',title:'Quiz Apple',score:s=>`Score ${s}/20`}},ar:{dir:'rtl',pin:'١١١١',ui:{hint:'حاول إدخال ١١١١',title:'مسابقة آبل',score:s=>`النتيجة ${s}/20`}}};
-let lang=navigator.language.startsWith('fr')?'fr':navigator.language.startsWith('ar')?'ar':'en';langSelect.value=lang;
+let lang=navigator.language.startsWith('fr')?'fr':navigator.language.startsWith('ar')?'ar':'en';
+langSelect.value=lang;
 function applyLang(){document.body.dir=LANG[lang].dir;hint.textContent=LANG[lang].ui.hint;title.textContent=LANG[lang].ui.title}
 langSelect.onchange=e=>{lang=e.target.value;applyLang()};applyLang();
-
-/* time */
 let use24=false;
-setInterval(()=>{
- const d=new Date();
- time.textContent=d.toLocaleTimeString([],use24?{hour:'2-digit',minute:'2-digit',hour12:false}:{hour:'2-digit',minute:'2-digit',hour12:true});
-},1000);
+setInterval(()=>{const d=new Date();time.textContent=d.toLocaleTimeString([],use24?{hour:'2-digit',minute:'2-digit',hour12:false}:{hour:'2-digit',minute:'2-digit',hour12:true})},1000);
 time.onclick=()=>use24=!use24;
-
-/* boot → lock */
+const boot=document.getElementById('boot'),lock=document.getElementById('lock'),quiz=document.getElementById('quiz');
 setTimeout(()=>{boot.classList.remove('active');lock.classList.add('active')},3200);
-
-/* pin */
-const isMobile = innerWidth < 768;
-let input = '';
-
-// allow keyboard typing on desktop
-document.addEventListener('keydown', e => {
-  if(!lock.classList.contains('active')) return;
-  if(!isMobile && /[0-9]/.test(e.key)){
-    input += e.key;
-    dots.textContent = '•'.repeat(input.length);
-    checkPin();
-  }
-  if(e.key === 'Backspace'){
-    input = input.slice(0,-1);
-    dots.textContent = '•'.repeat(input.length);
-  }
-});
-
-if(isMobile){
-  for(let i=1;i<=9;i++) pad.innerHTML += `<div class=key>${i}</div>`;
-  pad.innerHTML += `<div></div><div class=key>0</div><div></div>`;
-}
-
-pad.onclick = e => {
-  if(!e.target.classList.contains('key')) return;
-  input += e.target.textContent;
-  dots.textContent = '•'.repeat(input.length);
-  checkPin();
-};
-
-function checkPin(){
-  if(input.length === 4){
-    if(input === LANG[lang].pin){
-      face.style.display = 'block';
-      setTimeout(unlock, 1200);
-    } else {
-      tone(180, .4);
-      lock.classList.add('shake');
-      setTimeout(()=>lock.classList.remove('shake'), 400);
-      input = '';
-      dots.textContent = '';
-    }
-  }
-}
-
-/* quiz – REAL QUESTIONS */
+const isMobile=innerWidth<768;let input='';
+if(isMobile){for(let i=1;i<=9;i++)pad.innerHTML+=`<div class=key>${i}</div>`;pad.innerHTML+=`<div></div><div class=key>0</div><div></div>`;}
+document.addEventListener('keydown', e => {if(!lock.classList.contains('active')) return;if(!isMobile && /[0-9]/.test(e.key)){input+=e.key;dots.textContent='•'.repeat(input.length);checkPin();}if(e.key==='Backspace'){input=input.slice(0,-1);dots.textContent='•'.repeat(input.length);}});
+pad.onclick=e=>{if(!e.target.classList.contains('key'))return;input+=e.target.textContent;dots.textContent='•'.repeat(input.length);checkPin();};
+function checkPin(){if(input.length===4){if(input===LANG[lang].pin){face.style.display='block';setTimeout(unlock,1200);}else{tone(180,.4);lock.classList.add('shake');setTimeout(()=>lock.classList.remove('shake'),400);input='';dots.textContent='';}}}
 const QUESTIONS={
- en:[
-  {q:"When was Apple founded?",c:["1976","1984","1998","2007"],a:0},
-  {q:"Who founded Apple?",c:["Steve Jobs","Bill Gates","Elon Musk","Mark Zuckerberg"],a:0},
-  {q:"Apple phone is called?",c:["Galaxy","Pixel","iPhone","Nokia"],a:2},
-  {q:"Apple laptop line?",c:["iMac","MacBook","ThinkPad","Surface"],a:1},
-  {q:"Apple tablet?",c:["Watch","iPad","Mac","TV"],a:1}
- ],
- fr:[
-  {q:"Quand Apple a-t-elle été fondée ?",c:["1976","1984","1998","2007"],a:0},
-  {q:"Fondateur d’Apple ?",c:["Steve Jobs","Bill Gates","Elon Musk","Mark Zuckerberg"],a:0},
-  {q:"Téléphone Apple ?",c:["Galaxy","Pixel","iPhone","Nokia"],a:2},
-  {q:"Portable Apple ?",c:["iMac","MacBook","ThinkPad","Surface"],a:1},
-  {q:"Tablette Apple ?",c:["Watch","iPad","Mac","TV"],a:1}
- ],
- ar:[
-  {q:"متى تأسست آبل؟",c:["1976","1984","1998","2007"],a:0},
-  {q:"من مؤسس آبل؟",c:["ستيف جوبز","بيل غيتس","إيلون ماسك","مارك"],a:0},
-  {q:"هاتف آبل يسمى؟",c:["جالاكسي","بيكسل","آيفون","نوكيا"],a:2},
-  {q:"لابتوب آبل؟",c:["آيماك","ماك بوك","ثينكباد","سيرفس"],a:1},
-  {q:"جهاز آبل اللوحي؟",c:["ساعة","آيباد","ماك","تلفاز"],a:1}
- ]
+ en:[{q:"When was Apple founded?",c:["1976","1984","1998","2007"],a:0},{q:"Who founded Apple?",c:["Steve Jobs","Bill Gates","Elon Musk","Mark Zuckerberg"],a:0},{q:"Apple phone is called?",c:["Galaxy","Pixel","iPhone","Nokia"],a:2},{q:"Apple laptop line?",c:["iMac","MacBook","ThinkPad","Surface"],a:1},{q:"Apple tablet?",c:["Watch","iPad","Mac","TV"],a:1}],
+ fr:[{q:"Quand Apple a-t-elle été fondée ?",c:["1976","1984","1998","2007"],a:0},{q:"Fondateur d’Apple ?",c:["Steve Jobs","Bill Gates","Elon Musk","Mark Zuckerberg"],a:0},{q:"Téléphone Apple ?",c:["Galaxy","Pixel","iPhone","Nokia"],a:2},{q:"Portable Apple ?",c:["iMac","MacBook","ThinkPad","Surface"],a:1},{q:"Tablette Apple ?",c:["Watch","iPad","Mac","TV"],a:1}],
+ ar:[{q:"متى تأسست آبل؟",c:["1976","1984","1998","2007"],a:0},{q:"من مؤسس آبل؟",c:["ستيف جوبز","بيل غيتس","إيلون ماسك","مارك"],a:0},{q:"هاتف آبل يسمى؟",c:["جالاكسي","بيكسل","آيفون","نوكيا"],a:2},{q:"لابتوب آبل؟",c:["آيماك","ماك بوك","ثينكباد","سيرفس"],a:1},{q:"جهاز آبل اللوحي؟",c:["ساعة","آيباد","ماك","تلفاز"],a:1}]
 };
 let qi=0,score=0;
 function unlock(){lock.classList.remove('active');quiz.classList.add('active');load()}
-function load(){
- const Q=QUESTIONS[lang];
- const cur=Q[qi%Q.length];
- q.textContent=cur.q;
- choices.innerHTML='';
- cur.c.forEach((t,i)=>{
-  const d=document.createElement('div');
-  d.className='choice';d.textContent=t;
-  d.onclick=()=>{if(i===cur.a)score++;qi++;qi<20?load():q.textContent=LANG[lang].ui.score(score)};
-  choices.appendChild(d);
- });
- score.textContent=LANG[lang].ui.score(score);
-}
-
-/* random username with forced 2nd refresh */
-const names=['Alex','Omar','Liam','Noah','Yusuf','Adam'];
-let refreshCount=0;
-nameBtn.onclick=()=>{
- refreshCount++;
- username.textContent=refreshCount===2?'Thamer':names[Math.floor(Math.random()*names.length)];
-};
+function load(){const Q=QUESTIONS[lang];const cur=Q[qi%Q.length];q.textContent=cur.q;choices.innerHTML='';cur.c.forEach((t,i)=>{const d=document.createElement('div');d.className='choice';d.textContent=t;d.onclick=()=>{if(i===cur.a)score++;qi++;qi<20?load():q.textContent=LANG[lang].ui.score(score)};choices.appendChild(d)});score.textContent=LANG[lang].ui.score(score);}
+const names=['Alex','Omar','Liam','Noah','Yusuf','Adam'];let refreshCount=0;
+nameBtn.onclick=()=>{refreshCount++;username.textContent=refreshCount===2?'Thamer':names[Math.floor(Math.random()*names.length)]};
+} // end onload
+</script>
+</body>
+</html>
